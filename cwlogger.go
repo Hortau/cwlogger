@@ -24,6 +24,9 @@ type Config struct {
 	// The name of the log group to write logs into. Required.
 	LogGroupName string
 
+	// OPTIONAL - A prefix to add before the random part of the streamname
+	StreamPrefix string
+
 	// An optional function to report errors that couldn't be automatically
 	// handled during a PutLogEvents API call and caused a log events to be
 	// dropped.
@@ -75,7 +78,7 @@ func New(config *Config) (*Logger, error) {
 		name:          &config.LogGroupName,
 		svc:           config.Client,
 		retention:     config.Retention,
-		prefix:        randomHex(32),
+		prefix:        config.StreamPrefix + randomHex(32),
 		batcher:       newBatcher(),
 		done:          make(chan bool),
 	}
