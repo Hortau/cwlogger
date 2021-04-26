@@ -15,7 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 )
 
-// The Config for the Logger.
+// The Config for the logger.
 type Config struct {
 	// The Amazon CloudWatch Logs client created with the AWS SDK for Go.
 	// Required.
@@ -38,9 +38,13 @@ type Config struct {
 	// documentation for valid values.
 	Retention int
 }
+type Logger interface {
+	Log(t time.Time, s string)
+	Close()
+}
 
-// A Logger represents a single CloudWatch Logs log group.
-type Logger struct {
+// A logger represents a single CloudWatch Logs log group.
+type logger struct {
 	name          *string
 	svc           *cloudwatchlogs.CloudWatchLogs
 	streams       *logStreams
@@ -52,14 +56,14 @@ type Logger struct {
 	retention     int
 }
 
-// New creates a new Logger.
+// New creates a new logger.
 //
 // Creates the log group if it doesn't yet exist, and one initial log stream for
 // writing logs into.
 //
 // Returns an error if the configuration is invalid, or if either the creation
 // of the log group or log stream fail.
-func New(config *Config) (*Logger, error) {
+func New(config *Config) (Logger, error) {
 	if config.Client == nil {
 		return nil, errors.New("cwlogger: config missing required Client")
 	}
@@ -73,7 +77,7 @@ func New(config *Config) (*Logger, error) {
 		errorReporter = config.ErrorReporter
 	}
 
-	lg := &Logger{
+	lg := &logger{
 		errorReporter: errorReporter,
 		name:          &config.LogGroupName,
 		svc:           config.Client,
@@ -104,7 +108,7 @@ func New(config *Config) (*Logger, error) {
 // retention period of the log group.
 //
 // This method is safe for concurrent access by multiple goroutines.
-func (lg *Logger) Log(t time.Time, s string) {
+func (lg *logger) Log(t time.Time, s string) {
 	lg.wg.Add(1)
 	go func() {
 		lg.batcher.input <- &cloudwatchlogs.InputLogEvent{
@@ -118,24 +122,24 @@ func (lg *Logger) Log(t time.Time, s string) {
 // Close drains all enqueued log messages and writes them to CloudWatch Logs.
 // This method blocks until all pending log messages are written.
 //
-// The Logger is not meant to be used anymore after this method is called.
-// Doing so will result in a panic. Create a new Logger if you wish to write
+// The logger is not meant to be used anymore after this method is called.
+// Doing so will result in a panic. Create a new logger if you wish to write
 // more logs.
-func (lg *Logger) Close() {
+func (lg *logger) Close() {
 	lg.wg.Wait()       // wait for all log entries to be accepted
 	lg.batcher.flush() // wait for all log entries to be batched
 	<-lg.done          // wait for all batches to be processed
 	lg.streams.flush() // wait for all batches to be sent to CloudWatch Logs
 }
 
-func (lg *Logger) worker() {
+func (lg *logger) worker() {
 	for batch := range lg.batcher.output {
 		lg.streams.write(batch)
 	}
 	lg.done <- true
 }
 
-func (lg *Logger) createIfNotExists() error {
+func (lg *logger) createIfNotExists() error {
 	_, err := lg.svc.CreateLogGroup(&cloudwatchlogs.CreateLogGroupInput{
 		LogGroupName: lg.name,
 	})
@@ -162,7 +166,7 @@ type writeError struct {
 }
 
 type logStreams struct {
-	logger  *Logger
+	logger  *logger
 	streams []*logStream
 	writers map[*logStream]chan []*cloudwatchlogs.InputLogEvent
 	writes  chan []*cloudwatchlogs.InputLogEvent
@@ -170,7 +174,7 @@ type logStreams struct {
 	wg      sync.WaitGroup
 }
 
-func newLogStreams(lg *Logger) *logStreams {
+func newLogStreams(lg *logger) *logStreams {
 	streams := &logStreams{
 		logger:  lg,
 		streams: []*logStream{},
@@ -260,7 +264,7 @@ func (ls *logStreams) flush() {
 
 type logStream struct {
 	name          *string
-	logger        *Logger
+	logger        *logger
 	sequenceToken *string
 }
 

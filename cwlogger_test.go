@@ -573,7 +573,7 @@ func newClientWithServer(handler http.HandlerFunc) *cloudwatchlogs.CloudWatchLog
 	return cloudwatchlogs.New(session, config)
 }
 
-func newLoggerWithServer(config *Config, handler http.HandlerFunc) *Logger {
+func newLoggerWithServer(config *Config, handler http.HandlerFunc) Logger {
 	cfg := new(Config)
 	*cfg = *config
 	if cfg.Client == nil {
@@ -660,7 +660,7 @@ func NewLogChecker(messageSize int) *LogChecker {
 	}
 }
 
-func (c *LogChecker) Generate(lg *Logger, count int) {
+func (c *LogChecker) Generate(lg Logger, count int) {
 	for i := 0; i < count; i++ {
 		c.id++
 		message := &TestLogMessage{
