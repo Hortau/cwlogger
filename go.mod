@@ -1,4 +1,4 @@
-module cwlogger
+module github.com/Hortau/cwlogger
 
 go 1.15
 
