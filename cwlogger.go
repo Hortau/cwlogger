@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"sync"
@@ -110,6 +111,11 @@ func New(config *Config) (Logger, error) {
 // This method is safe for concurrent access by multiple goroutines.
 func (lg *logger) Log(t time.Time, s string) {
 	lg.wg.Add(1)
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println("panic occurred in cwlog Log:", err)
+		}
+	}()
 	go func() {
 		lg.batcher.input <- &cloudwatchlogs.InputLogEvent{
 			Message:   &s,
