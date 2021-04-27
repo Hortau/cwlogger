@@ -117,6 +117,11 @@ func (lg *logger) Log(t time.Time, s string) {
 		}
 	}()
 	go func() {
+		defer func() {
+			if err := recover(); err != nil {
+				log.Println("panic occurred in cwlog Log 2 :", err)
+			}
+		}()
 		lg.batcher.input <- &cloudwatchlogs.InputLogEvent{
 			Message:   &s,
 			Timestamp: aws.Int64(t.UnixNano() / int64(time.Millisecond)),
